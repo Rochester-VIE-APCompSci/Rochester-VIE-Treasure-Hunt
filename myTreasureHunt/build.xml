@@ -1,0 +1,344 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<!--
+Build the deliverables we will give to the students
+for the Treasure hunt competition:
+    * Sample boards
+    * Platform source code
+    * Executable platform jar
+    * Competition/Boards/Setup documentation
+    * Javadoc for student-used classes
+-->
+<project name="Treasure hunt student build" default="student-deliverable">
+
+    <property name="build.year" value="2022"/>
+    <property name="build.dir" value="build/build4student" />
+    <property name="deliverable.zip.dir" value="${build.dir}/deliverable-temp" />
+    <property name="deliverable.zip.prefix" value="treasure_hunt_${build.year}"/>
+    <property name="boards.dir" value="boards" />
+    <property name="platform.src.dir" value="src/main/java" />
+	<property name="platform.resource.dir" value="src/main/resource" />
+	<property name="test.src.dir" value="src/test/java" />
+    <property name="platform.sample.src.dir" value="${platform.src.dir}/com/ibm/vie/mazerunner" />
+    <property name="lib.dir" value="lib" />
+    <property name="student.src.dir" value="javaStudent" />
+    <property name="doc.dir" value="doc" />
+    <property name="platform.build.dir" value="${build.dir}/classes" />
+    <property file="${platform.resource.dir}/META-INF/version.properties" />
+
+
+    <property name="drjava.project.file.name" value="treasure_hunt_${build.year}.drjava"/>
+    <property name="drjava.template" value="./drJava/drjava_project_template.xml"/>
+
+
+    <property name="competition.name" value="Rochester VIE Programming Competition ${build.year}" />
+
+    <tstamp/>
+
+    <!-- Code we'll build and ship as source -->
+    <fileset  dir="${platform.src.dir}" id="platform-code4students">
+        <!-- Build the game platform and sample players-->
+        <include name="com/**/*.java" />
+
+        <!-- Don't give students the solution. -->
+        <exclude name="**/OptimalPlayer.java"/>
+
+    </fileset>
+	
+	<!-- Code we'll build and ship as resources -->
+	    <fileset  dir="${platform.resource.dir}" id="spritesrc">
+	        <!-- package resources that are loaded from class path-->
+	        <include name="**" />
+
+	        <!-- Don't need META-INF on the classpath. -->
+	        <exclude name="META-INF"/>
+
+	    </fileset>
+	
+
+    <!-- Source files we expect students to copy/modify -->
+    <fileset dir="${student.src.dir}" id="template-code4students">
+        <include name="**/*.*"/>
+    </fileset>
+
+    <!-- Platform source files we expect the students to use. Will build javadoc for these -->
+    <fileset dir="${platform.src.dir}" id="useful-code4students">
+        <include name="com/ibm/vie/mazerunner/IPlayer.java"/>
+        <include name="com/ibm/vie/mazerunner/IBoard.java"/>
+    	<include name="com/ibm/vie/mazerunner/IAnalysisBoard.java"/>
+        <include name="com/ibm/vie/mazerunner/Move.java"/>
+    	<include name="com/ibm/vie/mazerunner/Location.java"/>
+        <include name="com/ibm/vie/mazerunner/squares/Treasure.java"/>
+        <include name="com/ibm/vie/mazerunner/squares/ISquare.java"/>
+        <include name="com/ibm/vie/mazerunner/squares/Treasure.java"/>
+        <include name="com/ibm/vie/mazerunner/squares/Wall.java"/>
+        <include name="com/ibm/vie/mazerunner/squares/Space.java"/>
+        <include name="com/ibm/vie/mazerunner/squares/Bushes.java"/>
+        <include name="com/ibm/vie/mazerunner/squares/Trees.java"/>
+        <include name="com/ibm/vie/mazerunner/squares/Lava.java"/>
+        <include name="com/ibm/vie/mazerunner/squares/Mountain.java"/>
+        <include name="com/ibm/vie/mazerunner/squares/Water.java"/>
+        <include name="com/ibm/vie/mazerunner/squares/Mud.java"/>
+        <include name="com/ibm/vie/mazerunner/squares/package-info.java"/>
+    	<include name="com/ibm/vie/mazerunner/package-info.java"/>
+        <include name=""/>
+    </fileset>
+
+    <fileset dir="${platform.src.dir}" id="version-info" includes="META-INF/version.properties"/>
+
+    <fileset dir="." id="copyright" includes="copyright.txt" />
+    <fileset dir=".." id="license" includes="LICENSE" />
+
+    <fileset dir="${boards.dir}" id="boards">
+        <!-- This trick lets me include the 'boards' directory in the jar.
+             If I specify this on the dir parameter, the boards are placed
+             in the root of the jar: that is a pain point as it was different
+             between running in eclipse and running in the student environment. -->
+        <!-- Note subdirectories of 'boards' are not meant to be shipped to students  -->
+        <include name="Level*.csv"/>
+    </fileset>
+
+    <fileset dir="${doc.dir}" id="doc">
+        <include name="*.pdf"/>
+    </fileset>
+
+    <!-- 3rd party libs -->
+    <fileset dir="${lib.dir}" id="libs">
+        <include name="**/*.jar"/>
+    </fileset>
+
+    <path id="libpath">
+        <fileset refid="libs"/>
+    </path>
+
+    <!-- Resources (Sprite source code) -->
+    <!-- <fileset dir="." id="spritesrc">
+        <include name="TreasureHunt.png"/>
+        <include name="TreasureHunt.xml"/>
+    </fileset> -->
+
+
+    <!-- To reuse my file set across the javac and source tasks,
+       I have to jump through this hoop to get it into a string accepted by
+       javac. javac supports a limited set of nested elements.
+    -->
+    <property name="src.includes.temp" value="${toString:platform-code4students}" />
+    <loadresource property="src.includes">
+      <propertyresource name="src.includes.temp"/>
+      <filterchain>
+        <tokenfilter>
+          <filetokenizer/>
+          <replacestring from=";" to=","/>
+        </tokenfilter>
+      </filterchain>
+    </loadresource>
+    <echo message="${src.includes}"/>
+
+    <!--
+        setup
+    -->
+    <target name="setup">
+        <delete dir="${build.dir}"  quiet="false" />
+        <mkdir dir="${platform.build.dir}" />
+    </target>
+
+	
+	
+    <!--
+        Build the Treasure Hunt platform code
+    -->
+    <target name="build" depends="setup">
+        <!-- Note there are certain things we do not want to make available
+             to the students like the board generation or anything they could
+             use to give them an advantage. -->
+        <!-- Using Java 8. Team decided we do not want to rely on Java 11 function as
+             some students are using their own laptops for class. -->
+        <javac srcdir="${platform.src.dir}" destdir="${platform.build.dir}"
+            includes="${src.includes}"
+            classpathref="libpath"
+            target="1.8" source="1.8" debug="on" debuglevel="source,lines">
+        </javac>
+
+        <jar destfile="${build.dir}/treasurehunt.jar">
+            <fileset dir="${platform.build.dir}" />
+
+            <!-- Include sample boards for convenient loading in the student driver program. -->
+            <zipfileset refid="boards" prefix="boards"/>
+            <fileset refid="version-info"/> <!-- include version info -->
+
+            <!-- Include sprites -->
+            <fileset refid="spritesrc"/>
+
+            <fileset refid="license" />
+
+            <manifest>
+                <attribute name="Built-By" value="${user.name}"/>
+                <attribute name="Specification-Title" value="${competition.name}"/>
+                <attribute name="Specification-Vendor" value="IBM Corporation: VIE programming team"/>
+                <attribute name="Implementation-Title" value="Treasure Hunt"/>
+                <attribute name="Implementation-Version" value="${DSTAMP} ${TSTAMP}"/>
+                <attribute name="Implementation-Vendor" value="IBM Corporation: VIE programming team"/>
+
+                <attribute name="Sealed" value="true" />
+                <attribute name="Main-Class" value="com.ibm.vie.mazerunner.MyTreasureHunt" />
+            </manifest>
+        </jar>
+
+        <!-- Adding the copyright separately as the JIM Java copyright guideline says to have the copyright
+                      uncompressed and near the top of the file if possible. Adding this last puts it at the top of the binary. -->
+         <jar destfile="${build.dir}/treasurehunt.jar" compress="false" update="true" keepcompression="true">
+             <fileset refid="copyright" />
+         </jar>
+
+        <!-- Copy the jar to the zip directory. Doing this so we can delete the zip directory when we are done with it, but keep the jar around. -->
+        <copy file="${build.dir}/treasurehunt.jar" todir="${deliverable.zip.dir}/lib" overwrite="true"/>
+
+    </target>
+
+	<target name="junit" depends="build">
+
+	    <junit printsummary="yes" haltonfailure="yes">
+
+		<!-- Project classpath, must include junit.jar -->
+		<classpath refid="test.path" />
+			
+		<!-- test class -->
+		<classpath location="${test.classes.dir}" />
+			
+		<test name="com.mkyong.test.TestMessage" 
+			haltonfailure="no" todir="${report.dir}">
+			<formatter type="plain" />
+			<formatter type="xml" />
+		</test>
+			
+	  </junit>
+	</target>
+	
+    <!-- 
+        Produce the javadoc
+     -->
+    <target name="javadoc" depends="build">
+        <javadoc classpath="" destdir="${deliverable.zip.dir}/doc/javadoc"
+            doctitle="${competition.name}" noindex="false" nonavbar="false"
+            notree="false" access="public" author="true" nodeprecated="false"
+            nodeprecatedlist="false" source="1.8" splitindex="true" use="true"
+            version="true" additionalparam="">
+
+            <fileset refid="useful-code4students" />
+
+        </javadoc>
+
+    </target>
+
+    <!--
+        Source code
+     -->
+    <target name="source" depends="build">
+        <copy todir="${deliverable.zip.dir}/misc/src">
+            <fileset refid="platform-code4students"/>
+        </copy>
+
+        <copy todir="${deliverable.zip.dir}/misc/src">
+            <fileset refid="spritesrc"/>
+        </copy>
+
+
+    </target>
+
+    <!--
+        Boards
+    -->
+    <target name="boards" depends="setup">
+        <copy todir="${deliverable.zip.dir}/boards">
+            <fileset refid="boards"/>
+        </copy>
+
+        <!-- Ensure the copied boards have CRLF line endings as we
+        expect students to open and copy boards via Notepad. Various development
+        platforms and settings in git make this problematic, so this hammer
+        will ensure the shipped stuff is ok. -->
+        <fixcrlf srcdir="${deliverable.zip.dir}/boards" includes="**/*.csv" 
+            eol="crlf" />
+            
+    </target>
+
+    <!--
+        3rd party libs needed at runtime
+    -->
+    <target name="copy.libs" depends="setup">
+        <copy todir="${deliverable.zip.dir}/lib">
+            <fileset refid="libs"/>
+        </copy>
+
+    </target>
+
+
+    <!--
+        Documentation
+    -->
+    <target name="pubs" depends="setup">
+        <copy todir="${deliverable.zip.dir}/doc">
+            <fileset refid="doc"/>
+        </copy>
+    </target>
+
+
+    <!--
+        Dr Java project
+    -->
+
+    <target name="drjava" depends="setup, build">
+        <!-- I attempted to generate this but it was too much work. This is hard coded for now. -->
+        <!--  TODO any changes to files in the lib directory or to the sample files need to be updated here -->
+        <copy file="${drjava.template}" tofile="${deliverable.zip.dir}/drjava/${drjava.project.file.name}"/>
+
+        <!-- Copy source code the students need to get started -->
+        <copy todir="${deliverable.zip.dir}/drjava">
+            <fileset refid="template-code4students" />
+        </copy>
+
+        <!-- Remove the package declaration from the sample code -->
+        <replaceregexp match="^\s*package\s+com\.ibm\..+$" byline="true" replace="import com.ibm.vie.mazerunner.*;${line.separator}import com.ibm.vie.mazerunner.squares.*;">
+            <fileset dir="${deliverable.zip.dir}/drjava" includes="*.java" />
+        </replaceregexp>
+
+    </target>
+    <!--
+        Assemble the student deliverable, a zip containing
+        all of the stuff.
+    -->
+    <target name="zip" depends="build, source, javadoc, boards, pubs,copy.libs,drjava" >
+        <zip destfile="${build.dir}/student-v${build.version}.${build.revision}.zip">
+                <!-- Put everything under a directory to prevent students from unzipping someplace unexpected -->
+               <zipfileset dir="${deliverable.zip.dir}" prefix="${deliverable.zip.prefix}"/>
+        </zip>
+
+        <zip destfile="${build.dir}/student-v${build.version}.${build.revision}.zip" compress="false" update="true" keepcompression="true">
+            <zipfileset refid="license" prefix="${deliverable.zip.prefix}"/>
+        </zip>
+
+    </target>
+
+    <target name="cleanup" depends="zip">
+       <!-- When I search in Eclipse, I find the source code copy and keep updating it mistakenly.
+            Its convenient to at least keep the jar around, and we already have a copy of that in the build.dir. -->
+        <echo message="Deleting temp dir for unzip, except for the jar" />
+        <delete dir="${deliverable.zip.dir}" />
+    </target>
+
+    <target name="student-deliverable" depends="build, source, boards, pubs, zip, cleanup" />
+
+    <target name="bump-revision" description="Increment the revision number">
+            <propertyfile file="${platform.src.dir}/javaMain/META-INF/version.properties">
+                    <entry key="build.revision" value="1" operation="+" default="0" type="int"/>
+            </propertyfile>
+    </target>
+
+    <target name="bump-version" description="Increment the version number">
+            <propertyfile file="${platform.src.dir}/javaMain/META-INF/version.properties">
+                    <entry key="build.version" value="1" operation="+" default="0" type="int"/>
+                    <entry key="build.revision" value="0" operation="=" default="0" type="int"/>
+            </propertyfile>
+    </target>
+
+</project>
